@@ -1,6 +1,5 @@
 #include <SoftwareSerial.h>
 #include <TinyGPS.h>
-#include <PString.h>
 
 /*****************************************
  * Error codes
@@ -9,8 +8,9 @@ const int ERROR_GPS_UNAVAILABLE = 0;
 const int ERROR_GPS_STALE       = 1;
 
 /******************************************
- * GPS Setup
+ * Pin Definitions
  */
+
 // UART MODE
 //int GPS_TX = 0;
 //int GPS_RX = 1;
@@ -18,6 +18,9 @@ const int ERROR_GPS_STALE       = 1;
 // DLINE mode
 int GPS_TX = 2;
 int GPS_RX = 3;
+
+int LED_STATUS = 13;
+int LED_ERROR = 12;
 
 /*****************************************
  * Misc variables
@@ -30,10 +33,10 @@ int DIAG_DELAY = 2000; // time to pause before replaying diagnostic codes
 TinyGPS gps;
 SoftwareSerial gpsSerial(GPS_TX, GPS_RX);
 
-char buffer[20];
-PString pprint(buffer, sizeof(buffer)); 
-
 void setup() {
+  pinMode(LED_STATUS, OUTPUT);
+  pinMode(LED_ERROR, OUTPUT);
+  
   Serial.begin(115200);
   gpsSerial.begin(4800);
   
@@ -98,16 +101,21 @@ void error(const int errorCode) {
       break;
   }
   
-  //TODO flash LED
   while (i < flashTimes) {
-    digitalWrite(13, HIGH);
+    digitalWrite(LED_ERROR, HIGH);
     delay(500);
-    digitalWrite(13, LOW); 
+    digitalWrite(LED_ERROR, LOW);
+    delay(500);
+    Serial.println(i);
     i++;
   }
   delay(DIAG_DELAY);
+
 }
 
+/**
+ * Print floating point integers into printable text
+ */
 static void print_float(float val, float invalid, int len, int prec)
 {
   char sz[32];
@@ -115,10 +123,10 @@ static void print_float(float val, float invalid, int len, int prec)
   {
     strcpy(sz, "N/A");
     sz[len] = 0;
-        if (len > 0) 
-          sz[len-1] = ' ';
+    if (len > 0) 
+      sz[len-1] = ' ';
     for (int i=7; i<len; ++i)
-        sz[i] = ' ';
+      sz[i] = ' ';
     Serial.print(sz);
   }
   else
