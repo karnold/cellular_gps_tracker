@@ -57,7 +57,7 @@ void loop() {
   pollGPS(gps);
 }
 
-void pollGPS(TinyGPS &gps) {
+static void pollGPS(TinyGPS &gps) {
       int sat = gps.satellites();
       unsigned long age;
       float lat, lng, speed;
@@ -90,7 +90,7 @@ static bool gpsAvailable() {
 /**
  * Flash an LED X amount of times and write to console based on the error code given
  */
-void error(const int errorCode) {
+static void error(const int errorCode) {
   int flashTimes = 0;
   int i = 0;
   
