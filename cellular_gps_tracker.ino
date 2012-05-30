@@ -6,10 +6,11 @@
 /*****************************************
  * Error codes
  */
-const int ERROR_GPS_UNAVAIL = 0;
-const int ERROR_GPS_STALE   = 1;
-const int ERROR_SIM_UNAVAIL = 2;
-const int ERROR_GPRS_FAIL   = 3;
+const int ERROR_GPS_UNAVAIL  = 0;
+const int ERROR_GPS_STALE    = 1;
+const int ERROR_SIM_UNAVAIL  = 2;
+const int ERROR_GPRS_FAIL    = 3;
+const int ERROR_GPRS_UNKNOWN = 4;
 const boolean DEBUG         = true;
 
 /******************************************
@@ -50,9 +51,10 @@ boolean GPRS_AT_ready   = false;
  * Misc variables
  */
  
-int POLL_TIME = 1000; // The amount of time in milliseconds to poll for gps data;
-int PRECISION = 9; // Precision of lat/long coordinates
-int DIAG_DELAY = 2000; // time to pause before replaying diagnostic codes
+const int POLL_TIME = 1000; // The amount of time in milliseconds to poll for gps data;
+const int PRECISION = 9; // Precision of lat/long coordinates
+const int DIAG_DELAY = 2000; // time to pause before replaying diagnostic codes
+const int SEND_DELAY = 10000; // The time to wait before sending the next coordinates
 
 TinyGPS gps;
 SoftwareSerial cell(GPRS_TX, GPRS_RX);
@@ -112,6 +114,8 @@ static void readATString() {
 static void sendATCommand(const char* ATCom, int dly) {
   cell.println(ATCom);
   readATString();
+  //ProcessATString();
+  
   if (DEBUG) {
     Serial.print("COMMAND: ");
     Serial.print(ATCom);
@@ -128,6 +132,11 @@ static void ProcessATString() {
   
   if (DEBUG) {
     Serial.println(at_buffer);
+  }
+  
+  if (strstr(at_buffer, "+SIND: 1") != 0) {
+      GPRS_registered = false;
+      GPRS_AT_ready = false;
   }
   
   if (strstr(at_buffer, "+SIND: 10,\"SM\",0,\"FD\",0,\"LD\",0,\"MC\",0,\"RC\",0,\"ME\",0") != 0) {
@@ -151,8 +160,16 @@ static void ProcessATString() {
   }
   
   if (strstr(at_buffer, "+SIND: 4") != 0) {
-     GPRS_AT_ready = 1;
+     GPRS_AT_ready = true;
      Serial.println("GPRS AT Ready");
+     successLED();
+  }
+  
+  if (strstr(at_buffer, "+CME ERROR") != 0) {
+    error(ERROR_GPRS_UNKNOWN);
+  }
+  
+  if (strstr(at_buffer, "OK") != 0) {
      successLED();
   }
 }
@@ -172,22 +189,37 @@ static void establishNetwork() {
   Serial.println("Activate PDP Context");
   sendATCommand("AT+CGACT=1,1", 1000);
     
-  Serial.println("Configuring TCP connection to server");
-  sendATCommand("AT+SDATACONF=1,\"TCP\",\"bob.goesnowhere.com\",81", 1000);
-    
-  Serial.println("Starting TCP Connection");
-  sendATCommand("AT+SDATASTART=1,1", 1000);
+//  Serial.println("Configuring TCP connection to server");
+//  sendATCommand("AT+SDATACONF=1,\"TCP\",\"174.129.39.158\",81", 1000);
+//    
+//  Serial.println("Starting TCP Connection");
+//  sendATCommand("AT+SDATASTART=1,1", 1000);
+//
+//  Serial.println("Getting status");
+//  sendATCommand("AT+SDATASTATUS=1", 3000);
   
-  Serial.println("Getting status");
-  sendATCommand("AT+SDATASTATUS=1", 3000);
+  digitalWrite(LED_STATUS, HIGH);
 
 }
 
 static void sendData(const char* data) {
-  Serial.println(data);
+  Serial.println("Configuring TCP connection to server");
+  sendATCommand("AT+SDATACONF=1,\"TCP\",\"0.0.0.0\",81", 1000);
+    
+  Serial.println("Starting TCP Connection");
+  sendATCommand("AT+SDATASTART=1,1", 1000);
+
+  Serial.println("Getting status");
+  sendATCommand("AT+SDATASTATUS=1", 3000);
+  
+  Serial.println("Sending data");
   sendATCommand(data, 1000);
+  
+  Serial.println("Getting status");
+  sendATCommand("AT+SDATASTATUS=1", 3000);
   myStr.begin();
   successLED();
+  sendATCommand("AT+SDATASTART=1,0", 1000);
 }
 
 /*********************************************************
@@ -195,24 +227,31 @@ static void sendData(const char* data) {
  */
  
 static void pollGPS(TinyGPS &gps) {
-      int sat = gps.satellites();
       unsigned long age;
       float lat, lng, speed;
+      char course;
       
+      // Acquire data from gps
       gps.f_get_position(&lat, &lng, &age);
+      speed = gps.f_speed_mph();
+      course = gps.course();
       
       if (lat == TinyGPS::GPS_INVALID_F_ANGLE) {
         error(ERROR_GPS_UNAVAIL);
       } 
       
-      myStr.print("AT+SSTRSEND=1,\"");
-      myStr.print("{");
-      myStr.print(sat);
+      /*
+       * create string of "speed,course,latitude,longitude" to send to server
+       */
+      myStr.print("AT+SDATATSEND=1,10,\"");
+      myStr.print(speed);
+      myStr.print(",");
+      myStr.print(course);
       myStr.print(",");
       myStr.print(lat, DEC);
       myStr.print(",");
       myStr.print(lat, DEC);
-      myStr.print("}\"");
+      myStr.print("\"");
       
 }
 
@@ -222,7 +261,9 @@ static bool gpsAvailable() {
     if (gps.encode(Serial.read()))
       return true;
   }
-  return false; 
+  
+  error(ERROR_GPS_UNAVAIL);
+  return false;
 }
 
 
@@ -249,6 +290,10 @@ static void error(const int errorCode) {
     case ERROR_GPRS_FAIL:
       flashTimes = 4;
       Serial.println("ERROR: Connection to network failed");
+      break;
+    case ERROR_GPRS_UNKNOWN:
+      flashTimes = 5;
+      Serial.println("ERROR: Unknown");
       break;
   }
   
@@ -281,27 +326,24 @@ static void blinkLed(int lPin, int flashTimes, int dly) {
  * Main Loop
  */
 void loop() {
-  if (firstTimeInLoop) {
-    firstTimeInLoop = false;
+  if (GPRS_registered == false || GPRS_AT_ready == false) {
+    Serial.println("establishing");
     establishNetwork();
   }
   
-  bool newdata = false;
-  unsigned long start = millis();
+  Serial.println("Connection established: acquiring GPS");
   
-  // Every second we print an update
-  while (millis() - start < 1000)
-  {
-    if (gpsAvailable())
-      newdata = true;
+
+  if (gpsAvailable()) {
+    Serial.println("acquired gps");
+    // Retrieve GPS Data
+    pollGPS(gps);
+  
+    // Send data to cell network
+    sendData(myStr);
   }
   
-  // Retrieve GPS Data
-  pollGPS(gps);
-  
-  // Send data to cell network
-  sendData(myStr);
-  delay(5000);
+  delay(SEND_DELAY);
 }
 
 
