@@ -25,9 +25,9 @@ DROP TABLE IF EXISTS `tracker`;
 CREATE TABLE `tracker` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `date` int(11) DEFAULT NULL,
-  `lat` int(11) DEFAULT NULL,
-  `lng` int(11) DEFAULT NULL,
-  `speed` int(3) DEFAULT NULL,
+  `lat` NUMERIC(18,12) DEFAULT NULL,
+  `lng` NUMERIC(18,12) DEFAULT NULL,
+  `speed` float DEFAULT NULL,
   `course` varchar(5) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=latin1;
