@@ -12,7 +12,6 @@ class SendContent(Protocol):
     def dataReceived(self, data):
         date = time.time()
         values = data.split(',');
-        pprint.pprint(values);
         if len(values) != 3:
             print 'Error: Bad Data'
 
@@ -22,7 +21,12 @@ class SendContent(Protocol):
             db.query("INSERT INTO tracker (date, speed, lat, lng)" +
                 "VALUES ('" + str(date) + "', '" + str(values[0]) + "', '" + 
                 str(values[1]) + "', '" + str(values[2]) + "')")
-            print data
+            print "---------------------"
+            print "| Data Logged       |"
+            print "|-------------------|"
+            print "Speed: " + values[0]
+            print "Latitude: " + values[1]
+            print "Longitude: " + values[2]
         except _mysql.Error, e:
             print "Error %d: %s" % (e.args[0], e.args[1])
         finally:

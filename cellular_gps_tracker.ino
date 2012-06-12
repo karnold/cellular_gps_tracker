@@ -10,7 +10,9 @@ const int ERROR_GPS_UNAVAIL  = 0;
 const int ERROR_GPS_STALE    = 1;
 const int ERROR_SIM_UNAVAIL  = 2;
 const int ERROR_GPRS_FAIL    = 3;
-const int ERROR_GPRS_UNKNOWN = 4;
+const int ERROR_NETWORK_FAIL = 4;
+const int ERROR_HOST         = 5;
+const int ERROR_GPRS_UNKNOWN = 6;
 const boolean DEBUG          = true;
 
 /******************************************
@@ -145,6 +147,10 @@ static void ProcessATString() {
     successLED();
   }
   
+  if (strstr(at_buffer, "+SIND: 7") != 0) {
+    error(ERROR_NETWORK_FAIL);  
+  }
+  
   if (strstr(at_buffer, "+SIND: 8") != 0) {
     GPRS_registered = false;
     error(ERROR_GPRS_FAIL);
@@ -160,6 +166,10 @@ static void ProcessATString() {
      GPRS_AT_ready = true;
      Serial.println("GPRS AT Ready");
      successLED();
+  }
+  
+  if (strstr(at_buffer, "+SOCKSTATUS:  1,0,0100,0,0,0") != 0) {
+     error(ERROR_HOST);
   }
   
   if (strstr(at_buffer, "+CME ERROR") != 0) {
@@ -284,8 +294,16 @@ static void error(const int errorCode) {
       flashTimes = 4;
       Serial.println("ERROR: Connection to network failed");
       break;
-    case ERROR_GPRS_UNKNOWN:
+    case ERROR_NETWORK_FAIL:
       flashTimes = 5;
+      Serial.println("ERROR: Could not connect to network");
+      break;
+    case ERROR_HOST:
+      flashTimes = 6;
+      Serial.println("ERROR: Could not connect to host");
+      break;
+    case ERROR_GPRS_UNKNOWN:
+      flashTimes = 7;
       Serial.println("ERROR: Unknown");
       break;
   }
