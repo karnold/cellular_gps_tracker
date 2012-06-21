@@ -34,6 +34,8 @@ int GPRS_RX = 3;
 int LED_STATUS = 13;
 int LED_ERROR = 12;
 
+int GPS_RELAY = 9;
+
 /*****************************************
  * Buffers
  */
@@ -68,6 +70,7 @@ void setup() {
     
   pinMode(LED_STATUS, OUTPUT);
   pinMode(LED_ERROR, OUTPUT);
+  pinMode(GPS_RELAY, OUTPUT);
   
   Serial.begin(4800);
   cell.begin(9600);
@@ -85,7 +88,7 @@ void setup() {
 /**
  * store the serial string in a buffer until we receive a newline
  */
-static void readATString() {
+static void readATString(boolean watchTimeout = false) {
   char c;
   char buffidx = 0;
   int time = millis();
@@ -93,8 +96,10 @@ static void readATString() {
   while (1) {
     int newTime = millis();
 
-    // Time out if we never receive a response    
-    if (newTime - time > 30000) error(ERROR_GSM_FAIL);
+    if (watchTimeout) {
+      // Time out if we never receive a response    
+      if (newTime - time > 30000) error(ERROR_GSM_FAIL);
+    }
     
     if (cell.available() > 0) {
       c = cell.read();
@@ -149,6 +154,10 @@ static void ProcessATString() {
     firstTimeInLoop = true;
     GPRS_registered = false;
     GPRS_AT_ready = false;
+    
+    // GPS unit pulls enough current to keep the GSM shield from starting
+    // So we wait until it's initialized and then power it via a digital pin
+    digitalWrite(GPS_RELAY, HIGH);
   }
   
   if (strstr(at_buffer, "+SIND: 10,\"SM\",0,\"FD\",0,\"LD\",0,\"MC\",0,\"RC\",0,\"ME\",0") != 0 
@@ -186,6 +195,11 @@ static void ProcessATString() {
      error(ERROR_HOST);
   }
   
+  if (strstr(at_buffer, "+CME ERROR: 29") != 0) {
+    continueLoop = false;
+    return;
+  }
+  
   if (strstr(at_buffer, "+CME ERROR") != 0) {
     error(ERROR_GPRS_UNKNOWN);
   }
@@ -202,22 +216,20 @@ static void ProcessATString() {
 
 static void establishNetwork() {
   while (GPRS_registered == false || GPRS_AT_ready == false) {
-    readATString();
+    readATString(true);
     ProcessATString();
-    
   }
-  
-  Serial.println("Setting up PDP Context");
-  sendATCommand("AT+CGDCONT=1,\"IP\",\"wap.cingular\"");
-    
-  Serial.println("Configure APN");
-  sendATCommand("AT+CGPCO=0,\"\",\"\", 1");
-
 }
 
 static void sendData(const char* data) {
   digitalWrite(LED_STATUS, HIGH);
 
+  Serial.println("Setting up PDP Context");
+  sendATCommand("AT+CGDCONT=1,\"IP\",\"wap.cingular\"");
+    
+  Serial.println("Configure APN");
+  sendATCommand("AT+CGPCO=0,\"\",\"\", 1");
+  
   Serial.println("Activate PDP Context");
   sendATCommand("AT+CGACT=1,1");
   
@@ -228,8 +240,10 @@ static void sendData(const char* data) {
   Serial.println("Starting TCP Connection");
   sendATCommand("AT+SDATASTART=1,1");
   
-  Serial.println("Getting status");
-  sendATCommand("AT+SDATASTATUS=1");
+  delay(1000);
+  
+  //Serial.println("Getting status");
+  //sendATCommand("AT+SDATASTATUS=1");
   
   Serial.println("Sending data");
   sendATCommand(data);
@@ -256,13 +270,11 @@ static void sendData(const char* data) {
  
 static void pollGPS(TinyGPS &gps) {
       unsigned long age;
-      float lat, lng, speed, course;
-      //char course;
+      float lat, lng, speed;
       
       // Acquire data from gps
       gps.f_get_position(&lat, &lng, &age);
       speed = gps.f_speed_mph();
-      course = gps.course();
       
       if (lat == TinyGPS::GPS_INVALID_F_ANGLE) {
         error(ERROR_GPS_UNAVAIL);
@@ -278,7 +290,7 @@ static void pollGPS(TinyGPS &gps) {
       myStr.print(",");
       myStr.print(lng, DEC);
       myStr.print(",");
-      myStr.print(course);
+      myStr.print(TinyGPS::cardinal(gps.f_course()));
       myStr.print("\"");
       
 }

@@ -22,13 +22,16 @@ Open the sketch in the Arduino IDE.  By default the software is configured to se
 every 10 seconds.  If you would like to change that interval edit line 57 and change the value for
 SEND_DELAY.  This value is in milliseconds.
 
-Second, edit line 221.  The line appears as follows
+Second, edit line 238.  The line appears as follows
 
     sendATCommand("AT+SDATACONF=1,\"TCP\",\"0.0.0.0\",81", 1000);
 
 change "0.0.0.0" to the IP address of the machine that will be running the python script.  Attach your
 red LED and 1 resistor to pin 12 of the Arduino.  Do the same with the green LED, attaching it to pin
 13.
+
+NOTE: If you run into issues running on battery power, disconnect the 3.3v and 5v pins of the gps from
+the stack.  Then run a jumper from pin 9 to 5v on the GPS shield
 
 # Configuring your server
 
