@@ -88,8 +88,14 @@ void setup() {
 static void readATString() {
   char c;
   char buffidx = 0;
+  int time = millis();
     
   while (1) {
+    int newTime = millis();
+
+    // Time out if we never receive a response    
+    if (newTime - time > 30000) error(ERROR_GSM_FAIL);
+    
     if (cell.available() > 0) {
       c = cell.read();
       if (c == -1) {
@@ -199,7 +205,6 @@ static void establishNetwork() {
     readATString();
     ProcessATString();
     
-    if (millis() >= 30000) error(ERROR_GSM_FAIL);
   }
   
   Serial.println("Setting up PDP Context");
