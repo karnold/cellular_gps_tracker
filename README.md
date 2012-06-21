@@ -19,16 +19,19 @@ In order for this code to work you will need the following parts
 # Configuring arduino
 
 Open the sketch in the Arduino IDE.  By default the software is configured to send its coordinates
-every 10 seconds.  If you would like to change that interval edit line 56 and change the value for
+every 10 seconds.  If you would like to change that interval edit line 57 and change the value for
 SEND_DELAY.  This value is in milliseconds.
 
-Second, edit line 196.  The line appears as follows
+Second, edit line 221.  The line appears as follows
+
     sendATCommand("AT+SDATACONF=1,\"TCP\",\"0.0.0.0\",81", 1000);
+
 change "0.0.0.0" to the IP address of the machine that will be running the python script.  Attach your
 red LED and 1 resistor to pin 12 of the Arduino.  Do the same with the green LED, attaching it to pin
 13.
 
 # Configuring your server
+
 First create a file called config.py that exists in the same directory as the server script.  It should 
 look as followed:
 
@@ -39,9 +42,11 @@ look as followed:
 
 The server script requires the twisted python package to run.  Install via your prefered method.  After
 you have configured your python environment import the sql script to create your database:
+
     mysql -u username -p mydatabase < tracker.sql
 
 Once it is configured you can run the server with the following command
+
     python server.py
 
 # Diagnostics
